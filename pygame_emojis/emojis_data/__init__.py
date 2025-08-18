@@ -1,8 +1,8 @@
 """Emoji support for the game."""
 
-from .download import _SVG_DIR, download
+from .download import _PNG_DIR, download
 
 
-if not _SVG_DIR.exists():
-    _SVG_DIR.mkdir(parents=True)
+if not _PNG_DIR.exists():
+    _PNG_DIR.mkdir(parents=True)
     download()
