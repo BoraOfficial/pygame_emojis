@@ -6,7 +6,7 @@ import io
 
 import pygame
 
-from pygame_emojis.emojis_data.download import _PNG_DIR
+from pygame_emojis.emojis_data.download import _EMOJIS_DIR
 
 logger = logging.getLogger("pygame_emojis")
 
@@ -28,17 +28,14 @@ def find_code(emoji_: str) -> list[str]:
 
     return [f"{ord(e):X}" for e in emoji_]
 
+def find_emoji(emoji_: str) -> Path | None:
+    """Find an emoji image file (regardless of extension) based on the emoji.
 
-def find_png(emoji_: str) -> Path:
-    """Find the png file tha can be used.
+    It uses the following method:
 
-    It uses the follwing method:
-
-    * Find the unicode values of the emoji
-    * Tries to find files corresponding to the given unicode values
-    * If a file or more are found, return the files
-    * Otherwise try to find a file that matches less unicode values
-    * repeat until there are no values that were matched
+    * Converts the emoji to Unicode codepoints.
+    * Searches for files whose names start with the codepoints.
+    * If none are found, shortens the code progressively and retries.
     """
 
     try:
@@ -48,22 +45,21 @@ def find_png(emoji_: str) -> Path:
     logger.debug(f"{code_list=}")
 
     while code_list:
-
         code = "-".join(code_list)
-        # Check for the file matching code list
-        target_file = _PNG_DIR.with_name(f"{code}.png")
-        if target_file.exists():
-            return target_file
 
-        # Check for more complex files
-        possible_files = [f for f in _PNG_DIR.rglob(f"{code}*.png")]
+        # Check for exact filename match (any extension)
+        for f in _EMOJIS_DIR.iterdir():
+            if f.stem == code:
+                return f
+
+        # Check for more complex matches (e.g. with variation selectors, skin tones, etc.)
+        possible_files = [f for f in _EMOJIS_DIR.glob(f"{code}*") if f.is_file()]
         if possible_files:
             return possible_files[0]
 
-        # Check with less complex code name
+        # Reduce specificity and try again
         code_list.pop()
 
-    # Return an empty list if no file was found
     return None
 
 
@@ -75,29 +71,43 @@ def load_emoji(
     If not found, raise a FileNotFoundError.
     """
 
-    file = find_png(emoji_)
+    file = find_emoji(emoji_)
     logger.debug(f"{file=}")
     if file is not None:
-        return load_png(file, size)
+        return emoji_to_surface(file, size)
     else:
         raise FileNotFoundError(f"No file available for emoji {emoji_}")
 
 
 
-def load_png(filename, size: tuple[int, int] | int = None) -> pygame.Surface:
-    """Load a png image and scale it based on the input size."""
-    # Load the image
-    image = pygame.image.load(filename)
-    
-    # Check if we need to scale the image
-    if size:
-        # If the size is a single integer (e.g., width), scale uniformly
-        if isinstance(size, int):
-            width = height = size
-        # If the size is a tuple (e.g., (width, height)), use those values directly
-        elif isinstance(size, tuple):
-            width, height = size
-        # Resize the image
-        image = pygame.transform.scale(image, (width, height))
-    
-    return image
+def emoji_to_surface(filename, size: tuple[int, int] | int = None) -> pygame.Surface:
+    if str(filename).lower().endswith('.png'): # Convert to str as filename is path object
+        """Load a png image and scale it based on the input size."""
+        # Load the image
+        image = pygame.image.load(filename)
+        
+        # Check if we need to scale the image
+        if size:
+            # If the size is a single integer (e.g., width), scale uniformly
+            if isinstance(size, int):
+                width = height = size
+            # If the size is a tuple (e.g., (width, height)), use those values directly
+            elif isinstance(size, tuple):
+                width, height = size
+            # Resize the image
+            image = pygame.transform.scale(image, (width, height))
+            return image
+    elif str(filename).lower().endswith('.svg'): # Convert to str as filename is path object
+        kwargs = {}
+
+        # Check if we need to scale the image
+        if size:
+            kwargs["parent_width"] = size if isinstance(size, int) else size[0]
+            kwargs["parent_height"] = size if isinstance(size, int) else size[1]
+
+        # Convert the svg to a png with the given size
+        new_bites = cairosvg.svg2png(url=str(filename), **kwargs)
+        byte_io = io.BytesIO(new_bites)
+        return pygame.image.load(byte_io)
+    else:
+        raise ValueError("Image file must be a .png or .svg file")
