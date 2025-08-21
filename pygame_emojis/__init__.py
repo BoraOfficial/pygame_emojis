@@ -47,9 +47,10 @@ def find_emoji(emoji_: str) -> Path | None:
     while code_list:
         code = "-".join(code_list)
 
-        # Check for exact filename match (any extension)
-        for f in _EMOJIS_DIR.iterdir():
-            if f.stem == code:
+        # Loop over possible extensions to find an exact match (png or svg)
+        for ext in ['png', 'svg']:
+            f = _EMOJIS_DIR / f"{code}.{ext}" # Construct potential file paths
+            if f.exists(): # Check if the file exists
                 return f
 
         # Check for more complex matches (e.g. with variation selectors, skin tones, etc.)
@@ -81,33 +82,37 @@ def load_emoji(
 
 
 def emoji_to_surface(filename, size: tuple[int, int] | int = None) -> pygame.Surface:
-    if str(filename).lower().endswith('.png'): # Convert to str as filename is path object
-        """Load a png image and scale it based on the input size."""
-        # Load the image
-        image = pygame.image.load(filename)
-        
-        # Check if we need to scale the image
-        if size:
-            # If the size is a single integer (e.g., width), scale uniformly
-            if isinstance(size, int):
-                width = height = size
-            # If the size is a tuple (e.g., (width, height)), use those values directly
-            elif isinstance(size, tuple):
-                width, height = size
-            # Resize the image
-            image = pygame.transform.scale(image, (width, height))
-            return image
-    elif str(filename).lower().endswith('.svg'): # Convert to str as filename is path object
+    """Load an image (PNG or SVG) and scale it based on the input size."""
+
+    def load_svg(filename: str, size: tuple[int, int] | int = None) -> pygame.Surface:
+        """Handles loading and converting SVG files."""
         kwargs = {}
 
-        # Check if we need to scale the image
         if size:
             kwargs["parent_width"] = size if isinstance(size, int) else size[0]
             kwargs["parent_height"] = size if isinstance(size, int) else size[1]
 
-        # Convert the svg to a png with the given size
-        new_bites = cairosvg.svg2png(url=str(filename), **kwargs)
-        byte_io = io.BytesIO(new_bites)
+        new_bytes = cairosvg.svg2png(url=str(filename), **kwargs)
+        byte_io = io.BytesIO(new_bytes)
         return pygame.image.load(byte_io)
+
+    def load_png(filename: str, size: tuple[int, int] | int = None) -> pygame.Surface:
+        """Handles loading PNG files."""
+        image = pygame.image.load(filename)
+        
+        if size:
+            if isinstance(size, int):
+                width = height = size
+            elif isinstance(size, tuple):
+                width, height = size
+            image = pygame.transform.scale(image, (width, height))
+        
+        return image
+
+    # Check the file extension and call the appropriate sub-function
+    if str(filename).lower().endswith('.png'):
+        return load_png(filename, size)
+    elif str(filename).lower().endswith('.svg'):
+        return load_svg(filename, size)
     else:
         raise ValueError("Image file must be a .png or .svg file")

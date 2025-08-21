@@ -8,6 +8,7 @@ name = "pygame_emojis"
 version = "0.1.1"
 authors = [
   { name="Lionel42", email="lionel@sciencegames.ch" },
+  { name="Bora", email="boraofficial@duck.com" },
 ]
 description = "API for using emojis in pygame."
 readme = "README.md"
@@ -21,6 +22,7 @@ classifiers = [
 dependencies = [
     "pygame",
     "emoji",
+    "cairosvg",
 ]
 
 
